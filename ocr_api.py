@@ -1,173 +1,142 @@
 from http.server import BaseHTTPRequestHandler
 import json
-from vision_ocr_processor import VisionOCRProcessor
 import base64
 import cgi
 import urllib.request
 import os
-import mimetypes
-import asyncio
+from vision_ocr_processor import VisionOCRProcessor
 
-# Initialize OCR processor globally
 ocr_processor = VisionOCRProcessor()
 
 class handler(BaseHTTPRequestHandler):
+    SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.pdf'}
+
     def is_supported_format(self, filename: str) -> bool:
-        """
-        ตรวจสอบนามสกุลไฟล์ว่ารองรับหรือไม่
-        """
-        # รายการนามสกุลไฟล์ที่รองรับ
-        SUPPORTED_EXTENSIONS = {
-            '.jpg', '.jpeg', '.png', '.gif', '.bmp', 
-            '.webp', '.tiff', '.tif', '.pdf'
-        }
-        
-        # แยกนามสกุลไฟล์และแปลงเป็นตัวพิมพ์เล็ก
-        file_ext = os.path.splitext(filename.lower())[1]
-        return file_ext in SUPPORTED_EXTENSIONS
+        return os.path.splitext(filename.lower())[1] in self.SUPPORTED_EXTENSIONS
     
-    async def process_image_async(self, image_bytes, filename):
-        # สมมติว่า process_image_bytes เป็น async function
-        result = await ocr_processor.process_image_bytes(image_bytes, filename)
-        return result
+    def process_image(self, image_bytes: bytes, filename: str) -> dict:
+        return ocr_processor.process_image_bytes(image_bytes, filename)
 
-    def do_POST(self):
-        if self.path == '/api/ocr/process-batch':
+    def send_json_response(self, data: dict, status_code: int = 200):
+        self.send_response(status_code)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode('utf-8'))
+
+    def process_form_data(self, form) -> list:
+        results = []
+        for field in form.keys():
+            if not form[field].filename:
+                continue
+
+            filename = form[field].filename
+            if not self.is_supported_format(filename):
+                results.append({
+                    'filename': filename,
+                    'status': 'error',
+                    'message': 'Unsupported file format'
+                })
+                continue
+
             try:
-                content_type = self.headers.get('Content-Type', '')
-                results = []
-
-                # สร้าง event loop
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-                if content_type.startswith('multipart/form-data'):
-                    form = cgi.FieldStorage(
-                        fp=self.rfile,
-                        headers=self.headers,
-                        environ={'REQUEST_METHOD': 'POST'}
-                    )
-                    
-                    for field in form.keys():
-                        if form[field].filename:
-                            filename = form[field].filename
-                            if not self.is_supported_format(filename):
-                                results.append({
-                                    'filename': filename,
-                                    'status': 'error',
-                                    'message': 'Unsupported file format'
-                                })
-                                continue
-                            
-                            file_data = form[field].file.read()
-                            # รอให้ async function ทำงานเสร็จ
-                            result = loop.run_until_complete(
-                                self.process_image_async(file_data, filename)
-                            )
-                            results.append({
-                                'filename': filename,
-                                'status': 'success',
-                                'data': result
-                            })
-
-                else:
-                    content_length = int(self.headers.get('Content-Length', 0))
-                    post_data = self.rfile.read(content_length)
-                    data = json.loads(post_data.decode('utf-8'))
-                    
-                    if 'images' not in data:
-                        raise ValueError("No images data provided")
-                    
-                    for image_data in data['images']:
-                        try:
-                            filename = image_data.get('filename', 'uploaded_image')
-                            
-                            if 'url' in image_data:
-                                image_bytes = self.get_image_from_url(image_data['url'])
-                            elif 'image' in image_data:
-                                image_bytes = base64.b64decode(image_data['image'])
-                            else:
-                                raise ValueError("No image data or URL provided")
-                            
-                            # รอให้ async function ทำงานเสร็จ
-                            result = loop.run_until_complete(
-                                self.process_image_async(image_bytes, filename)
-                            )
-                            results.append({
-                                'filename': filename,
-                                'status': 'success',
-                                'data': result
-                            })
-                        except Exception as img_error:
-                            results.append({
-                                'filename': filename,
-                                'status': 'error',
-                                'message': str(img_error)
-                            })
-
-                loop.close()
-
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                
-                response = json.dumps({
+                file_data = form[field].file.read()
+                result = self.process_image(file_data, filename)
+                results.append({
+                    'filename': filename,
                     'status': 'success',
-                    'data': results,
-                    'message': f'Processed {len(results)} images'
-                }).encode('utf-8')
-                self.wfile.write(response)
-                
+                    'data': result
+                })
             except Exception as e:
-                self.send_response(500)
-                self.send_header('Content-type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                
-                error_response = json.dumps({
+                results.append({
+                    'filename': filename,
                     'status': 'error',
                     'message': str(e)
-                }).encode('utf-8')
-                self.wfile.write(error_response)
+                })
+        return results
 
+    def process_json_data(self, data: dict) -> list:
+        results = []
+        for image_data in data.get('images', []):
+            filename = image_data.get('filename', 'uploaded_image')
+            try:
+                if 'url' in image_data:
+                    with urllib.request.urlopen(image_data['url']) as response:
+                        image_bytes = response.read()
+                elif 'image' in image_data:
+                    image_bytes = base64.b64decode(image_data['image'])
+                else:
+                    raise ValueError("No image data or URL provided")
+
+                result = self.process_image(image_bytes, filename)
+                results.append({
+                    'filename': filename,
+                    'status': 'success',
+                    'data': result
+                })
+            except Exception as e:
+                results.append({
+                    'filename': filename,
+                    'status': 'error',
+                    'message': str(e)
+                })
+        return results
+
+    def do_POST(self):
+        if self.path != '/api/ocr/process-batch':
+            return self.send_json_response({'status': 'error', 'message': 'Invalid endpoint'}, 404)
+
+        try:
+            content_type = self.headers.get('Content-Type', '')
+            
+            if content_type.startswith('multipart/form-data'):
+                form = cgi.FieldStorage(
+                    fp=self.rfile,
+                    headers=self.headers,
+                    environ={'REQUEST_METHOD': 'POST'}
+                )
+                results = self.process_form_data(form)
+            else:
+                content_length = int(self.headers.get('Content-Length', 0))
+                post_data = json.loads(self.rfile.read(content_length).decode('utf-8'))
+                results = self.process_json_data(post_data)
+
+            self.send_json_response({
+                'status': 'success',
+                'data': results,
+                'message': f'Processed {len(results)} images'
+            })
+
+        except Exception as e:
+            self.send_json_response({
+                'status': 'error',
+                'message': str(e)
+            }, 500)
 
     def do_GET(self):
-        if self.path == '/api/status':
-            response_data = {
+        endpoints = {
+            '/api/status': {
                 'status': 'success',
                 'data': {
                     'service': 'Vision OCR API',
                     'version': '1.0.0',
                     'status': 'active'
                 }
-            }
-        elif self.path == '/api/formats':
-            response_data = {
+            },
+            '/api/formats': {
                 'status': 'success',
                 'data': {
-                    'supported_formats': [
-                        '.jpg',
-                        '.jpeg',
-                        '.png',
-                        '.gif',
-                        '.bmp',
-                        '.webp'
-                    ]
+                    'supported_formats': list(self.SUPPORTED_EXTENSIONS)
                 }
             }
-        else:
-            response_data = {
-                'message': 'Vision OCR API is running'
-            }
-
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
+        }
         
-        response = json.dumps(response_data).encode('utf-8')
-        self.wfile.write(response)
+        response_data = endpoints.get(self.path, {
+            'status': 'error',
+            'message': 'Endpoint not found'
+        })
+        
+        self.send_json_response(response_data, 404 if response_data['status'] == 'error' else 200)
 
     def do_OPTIONS(self):
         self.send_response(200)
