@@ -1,13 +1,15 @@
-from datetime import datetime  # Add this for datetime
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
-import uvicorn
+from datetime import datetime
 from typing import List
-import tempfile
+import sys
 import os
-from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from vision_ocr_processor import VisionOCRProcessor
 
 app = FastAPI(
@@ -16,7 +18,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# เพิ่ม CORS
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,14 +27,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ต้องมี route นี้สำหรับ Vercel
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-# สำหรับ Serverless
-handler = Mangum(app)
-
 # Initialize OCR processor
 try:
     ocr_processor = VisionOCRProcessor()
@@ -40,24 +34,14 @@ except Exception as e:
     print(f"Failed to initialize OCR processor: {e}")
     raise
 
-# Custom URL paths
-API_V1_PREFIX = "/api/v1"
-OCR_PREFIX = f"{API_V1_PREFIX}/ocr"
+@app.get("/")
+async def root():
+    """Root endpoint for Vercel"""
+    return {"message": "Vision OCR API is running"}
 
-@app.get(f"{API_V1_PREFIX}/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "active",
-        "service": "Vision OCR API",
-        "version": "1.0.0"
-    }
-
-@app.post(f"{OCR_PREFIX}/process-image")
-async def process_single_image(file: UploadFile = File(...)):
-    """
-    Process a single image file
-    """
+@app.post("/api/ocr/process")
+async def process_image(file: UploadFile = File(...)):
+    """Process a single image file"""
     try:
         if not file.content_type.startswith('image/'):
             raise HTTPException(
@@ -65,24 +49,20 @@ async def process_single_image(file: UploadFile = File(...)):
                 detail="Invalid file type. Please upload an image file."
             )
         
-        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_path = temp_file.name
+        # Read file content
+        content = await file.read()
         
-        try:
-            result = ocr_processor.process_image(temp_path)
-            return JSONResponse(
-                content={
-                    "status": "success",
-                    "data": result,
-                    "message": "Image processed successfully"
-                },
-                status_code=200
-            )
-            
-        finally:
-            os.unlink(temp_path)
+        # Process image bytes directly
+        result = await ocr_processor.process_image_bytes(content, file.filename)
+        
+        return JSONResponse(
+            content={
+                "status": "success",
+                "data": result,
+                "message": "Image processed successfully"
+            },
+            status_code=200
+        )
             
     except Exception as e:
         raise HTTPException(
@@ -90,55 +70,7 @@ async def process_single_image(file: UploadFile = File(...)):
             detail=f"Error processing image: {str(e)}"
         )
 
-@app.post(f"{OCR_PREFIX}/process-batch")
-async def process_multiple_images(files: List[UploadFile] = File(...)):
-    """
-    Process multiple image files
-    """
-    try:
-        results = []
-        temp_files = []
-        
-        for file in files:
-            if not file.content_type.startswith('image/'):
-                continue
-            
-            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                content = await file.read()
-                temp_file.write(content)
-                temp_files.append(temp_file.name)
-        
-        try:
-            for temp_path in temp_files:
-                result = ocr_processor.process_image(temp_path)
-                results.append(result)
-            
-            return JSONResponse(
-                content={
-                    "status": "success",
-                    "data": {
-                        "total_processed": len(results),
-                        "results": results
-                    },
-                    "message": "Batch processing completed"
-                },
-                status_code=200
-            )
-            
-        finally:
-            for temp_path in temp_files:
-                try:
-                    os.unlink(temp_path)
-                except:
-                    pass
-                    
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing images: {str(e)}"
-        )
-
-@app.get(f"{OCR_PREFIX}/formats")
+@app.get("/api/formats")
 async def supported_formats():
     """Get supported image formats"""
     return {
@@ -155,9 +87,9 @@ async def supported_formats():
         }
     }
 
-@app.get(f"{API_V1_PREFIX}/status")
+@app.get("/api/status")
 async def service_status():
-    """Get detailed service status"""
+    """Get service status"""
     return {
         "status": "success",
         "data": {
@@ -168,14 +100,5 @@ async def service_status():
         }
     }
 
-def start_server(host="0.0.0.0", port=8000):
-    """Start the FastAPI server"""
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=port,
-        reload=True
-    )
-
-if __name__ == "__main__":
-    start_server()
+# Handler for Vercel
+handler = Mangum(app)
