@@ -98,5 +98,3 @@ class VisionOCRProcessor:
         except Exception as e:
             self.logger.error(f"Error processing image {filename}: {e}")
             raise
-
-    # ลบ process_directory และ main เพราะไม่จำเป็นสำหรับ API endpoint
