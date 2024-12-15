@@ -18,6 +18,12 @@ app = FastAPI(
 )
 
 # Configure CORS
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+# เพิ่ม CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,6 +31,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ต้องมี route นี้สำหรับ Vercel
+@app.get("/")
+async def root():
+    return {"message": "Hello World"}
 
 # Initialize OCR processor
 try:
