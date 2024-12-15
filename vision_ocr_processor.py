@@ -48,7 +48,7 @@ class VisionOCRProcessor:
             }
         }
 
-    async def process_image_bytes(self, image_bytes: bytes, filename: str = "uploaded_image") -> Dict[str, Any]:
+    def process_image_bytes(self, image_bytes: bytes, filename: str = "uploaded_image") -> Dict[str, Any]:
         self.logger.info(f"Processing image: {filename}")
         
         try:
