@@ -1,0 +1,6 @@
+.env
+credentials.json
+images
+ocr_results
+__pycache__
+ocr_process.log
