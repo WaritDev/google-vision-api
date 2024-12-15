@@ -36,6 +36,7 @@ file2: [ไฟล์รูปภาพ 2]
 Content-Type: application/json
 ```
 
+
 **Request Body:**
 ```json
 {
@@ -43,6 +44,14 @@ Content-Type: application/json
         {
             "url": "https://example.com/image1.jpg",
             "filename": "image1.jpg"
+        },
+        {
+            "url": "https://example.com/image2.png",
+            "filename": "image2.png"
+        },
+        {
+            "url": "https://example.com/image3.jpg",
+            "filename": "image3.jpg"
         }
     ]
 }
