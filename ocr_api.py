@@ -3,15 +3,6 @@ import json
 from vision_ocr_processor import VisionOCRProcessor
 import base64
 import cgi
-
-# Initialize OCR processor globally
-ocr_processor = VisionOCRProcessor()
-
-from http.server import BaseHTTPRequestHandler
-import json
-from vision_ocr_processor import VisionOCRProcessor
-import base64
-import cgi
 import urllib.request
 import os
 import mimetypes
@@ -21,6 +12,20 @@ import asyncio
 ocr_processor = VisionOCRProcessor()
 
 class handler(BaseHTTPRequestHandler):
+    def is_supported_format(self, filename: str) -> bool:
+        """
+        ตรวจสอบนามสกุลไฟล์ว่ารองรับหรือไม่
+        """
+        # รายการนามสกุลไฟล์ที่รองรับ
+        SUPPORTED_EXTENSIONS = {
+            '.jpg', '.jpeg', '.png', '.gif', '.bmp', 
+            '.webp', '.tiff', '.tif', '.pdf'
+        }
+        
+        # แยกนามสกุลไฟล์และแปลงเป็นตัวพิมพ์เล็ก
+        file_ext = os.path.splitext(filename.lower())[1]
+        return file_ext in SUPPORTED_EXTENSIONS
+    
     async def process_image_async(self, image_bytes, filename):
         # สมมติว่า process_image_bytes เป็น async function
         result = await ocr_processor.process_image_bytes(image_bytes, filename)
