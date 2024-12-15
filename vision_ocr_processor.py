@@ -47,18 +47,14 @@ class VisionOCRProcessor:
             self.logger.error(f"Failed to initialize Vision client: {e}")
             raise
 
-    async def process_image_bytes(self, image_bytes: bytes, filename: str = "uploaded_image") -> Dict[str, Any]:
+    def process_image_bytes(self, image_bytes: bytes, filename: str = "uploaded_image") -> Dict[str, Any]:
         """ประมวลผลรูปภาพจาก bytes (สำหรับ API endpoint)"""
         self.logger.info(f"Processing image: {filename}")
         
         try:
-            # สร้าง Vision Image object จาก bytes
             image = vision.Image(content=image_bytes)
-            
-            # เรียกใช้ Vision API
             response = self.client.document_text_detection(image=image)
             
-            # สร้างผลลัพธ์
             result = {
                 'filename': filename,
                 'timestamp': datetime.now().isoformat(),
@@ -66,7 +62,6 @@ class VisionOCRProcessor:
                 'blocks': []
             }
             
-            # ดึงข้อมูลแต่ละ block
             if response.full_text_annotation:
                 for page in response.full_text_annotation.pages:
                     for block in page.blocks:
@@ -81,7 +76,6 @@ class VisionOCRProcessor:
                             }
                         }
                         
-                        # รวมข้อความใน block
                         words = []
                         for paragraph in block.paragraphs:
                             for word in paragraph.words:
