@@ -8,8 +8,6 @@ from typing import List
 import tempfile
 import os
 from pathlib import Path
-
-# Import the VisionOCRProcessor class
 from vision_ocr_processor import VisionOCRProcessor
 
 app = FastAPI(
@@ -17,12 +15,6 @@ app = FastAPI(
     description="Custom API for processing images using Google Cloud Vision OCR",
     version="1.0.0"
 )
-
-# Configure CORS
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI()
 
 # เพิ่ม CORS
 app.add_middleware(
