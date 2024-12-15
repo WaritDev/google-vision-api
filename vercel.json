@@ -11,5 +11,9 @@
             "src": "/(.*)",
             "dest": "ocr_api.py"
         }
-    ]
+    ],
+    "env": {
+        "APP_MODULE": "ocr_api:app"
+    }
+
 }

@@ -2,6 +2,7 @@ from datetime import datetime  # Add this for datetime
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 import uvicorn
 from typing import List
 import tempfile
@@ -36,6 +37,9 @@ app.add_middleware(
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
+
+# สำหรับ Serverless
+handler = Mangum(app)
 
 # Initialize OCR processor
 try:
