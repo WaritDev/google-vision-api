@@ -1,17 +1,19 @@
 from http.server import BaseHTTPRequestHandler
 import json
-import base64
 import cgi
-import urllib.request
+from tokenize import endpats
 import os
 from vision_ocr_processor import VisionOCRProcessor
 
 ocr_processor = VisionOCRProcessor()
 
 class handler(BaseHTTPRequestHandler):
-    SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.pdf'}
+    SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
     MAX_IMAGES = 10
+    MAX_FILE_SIZE = 10 * 1024 * 1024
 
+    def check_file_size(self, file_data: bytes) -> bool:
+        return len(file_data) <= self.MAX_FILE_SIZE
 
     def is_supported_format(self, filename: str) -> bool:
         return os.path.splitext(filename.lower())[1] in self.SUPPORTED_EXTENSIONS
@@ -29,20 +31,23 @@ class handler(BaseHTTPRequestHandler):
     def process_form_data(self, form) -> list:
         results = []
         processed_count = 0
-        max_images = 10
+        
+        image_fields = []
+        for key in form.keys():
+            if key.startswith('images['):
+                image_fields.append(form[key])
+        
+        if len(image_fields) > self.MAX_IMAGES:
+            return [{
+                'status': 'error',
+                'message': f'Maximum number of images exceeded. Limit is {self.MAX_IMAGES} images per request.'
+            }]
 
-        for field in form.keys():
-            if processed_count >= max_images:
-                results.append({
-                    'status': 'error',
-                    'message': f'Maximum number of images ({max_images}) exceeded'
-                })
-                break
-
-            if not form[field].filename:
+        for field in image_fields:
+            if not field.filename:
                 continue
 
-            filename = form[field].filename
+            filename = field.filename
             if not self.is_supported_format(filename):
                 results.append({
                     'filename': filename,
@@ -52,7 +57,15 @@ class handler(BaseHTTPRequestHandler):
                 continue
 
             try:
-                file_data = form[field].file.read()
+                file_data = field.file.read()
+                if not self.check_file_size(file_data):
+                    results.append({
+                        'filename': filename,
+                        'status': 'error',
+                        'message': f'File size exceeds maximum limit of {self.MAX_FILE_SIZE/(1024*1024)}MB'
+                    })
+                    continue
+
                 result = self.process_image(file_data, filename)
                 results.append({
                     'filename': filename,
@@ -69,45 +82,6 @@ class handler(BaseHTTPRequestHandler):
 
         return results
 
-
-    def process_json_data(self, data: dict) -> list:
-        results = []
-        max_images = 10
-        images = data.get('images', [])
-
-        if len(images) > max_images:
-            return [{
-                'status': 'error',
-                'message': f'Maximum number of images ({max_images}) exceeded'
-            }]
-
-        for image_data in images:
-            filename = image_data.get('filename', 'uploaded_image')
-            try:
-                if 'url' in image_data:
-                    with urllib.request.urlopen(image_data['url']) as response:
-                        image_bytes = response.read()
-                elif 'image' in image_data:
-                    image_bytes = base64.b64decode(image_data['image'])
-                else:
-                    raise ValueError("No image data or URL provided")
-
-                result = self.process_image(image_bytes, filename)
-                results.append({
-                    'filename': filename,
-                    'status': 'success',
-                    'data': result
-                })
-            except Exception as e:
-                results.append({
-                    'filename': filename,
-                    'status': 'error',
-                    'message': str(e)
-                })
-
-        return results
-
-
     def do_POST(self):
         if self.path != '/api/ocr/process-batch':
             return self.send_json_response({'status': 'error', 'message': 'Invalid endpoint'}, 404)
@@ -122,42 +96,30 @@ class handler(BaseHTTPRequestHandler):
                     environ={'REQUEST_METHOD': 'POST'}
                 )
                 results = self.process_form_data(form)
+                
+                self.send_json_response({
+                    'status': 'success',
+                    'results': results,
+                    'message': f'Processed {len(results)} images'
+                })
             else:
                 content_length = int(self.headers.get('Content-Length', 0))
                 post_data = json.loads(self.rfile.read(content_length).decode('utf-8'))
                 results = self.process_json_data(post_data)
-
-            self.send_json_response({
-                'status': 'success',
-                'data': results,
-                'message': f'Processed {len(results)} images'
-            })
+                
+                self.send_json_response({
+                    'status': 'success',
+                    'results': results,
+                    'message': f'Processed {len(results)} images'
+                })
 
         except Exception as e:
             self.send_json_response({
                 'status': 'error',
                 'message': str(e)
             }, 500)
-
-    def do_GET(self):
-        endpoints = {
-            '/api/status': {
-                'status': 'success',
-                'data': {
-                    'service': 'Vision OCR API',
-                    'version': '1.0.0',
-                    'status': 'active'
-                }
-            },
-            '/api/formats': {
-                'status': 'success',
-                'data': {
-                    'supported_formats': list(self.SUPPORTED_EXTENSIONS)
-                }
-            }
-        }
         
-        response_data = endpoints.get(self.path, {
+        response_data = endpats.get(self.path, {
             'status': 'error',
             'message': 'Endpoint not found'
         })
