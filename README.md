@@ -1,83 +1,58 @@
-# Google Vision OCR API Documentation
+# Google Vision OCR API
 
-## Overview
-API สำหรับแปลงข้อความจากรูปภาพโดยใช้ Google Cloud Vision API รองรับการส่งข้อมูลได้ 3 รูปแบบ:
+## 📝 รายละเอียด
+API สำหรับแปลงข้อความจากรูปภาพโดยใช้ Google Cloud Vision API รองรับการส่งข้อมูล 3 รูปแบบ:
 - Form-data (รูปภาพหลายไฟล์)
 - URL ของรูปภาพ
-- รูปภาพแบบ Base64
 
-## Endpoint
+## 🔗 Endpoint
 ```
 POST https://google-vision-api.vercel.app/api/ocr/process-batch
 ```
 
-## วิธีการใช้งาน
+## 📌 ข้อจำกัด
+- รองรับไฟล์: JPG, JPEG, PNG, GIF, BMP, WEBP
+- ขนาดไฟล์สูงสุด: 10MB ต่อไฟล์
+- จำนวนไฟล์สูงสุด: 10 ไฟล์ต่อการเรียก
+
+## 🚀 วิธีการใช้งาน
 
 ### 1. แบบ Form-data
-เหมาะสำหรับการส่งไฟล์รูปภาพหลายไฟล์พร้อมกัน
-
-**Headers:**
-```
+```http
+POST /api/ocr/process-batch
 Content-Type: multipart/form-data
-```
 
-**Request Body:**
+images[]: [ไฟล์รูปภาพ 1]
+images[]: [ไฟล์รูปภาพ 2]
+...
 ```
-file1: [ไฟล์รูปภาพ 1]
-file2: [ไฟล์รูปภาพ 2]
+หรือ
+```http
+POST /api/ocr/process-batch
+Content-Type: multipart/form-data
+
+images[0]: [ไฟล์รูปภาพ 1]
+images[1]: [ไฟล์รูปภาพ 2]
 ...
 ```
 
 ### 2. แบบ URL
-สำหรับการส่ง URL ของรูปภาพที่ต้องการประมวลผล
-
-**Headers:**
-```
+```http
+POST /api/ocr/process-batch
 Content-Type: application/json
-```
 
-
-**Request Body:**
-```json
 {
     "images": [
         {
             "url": "https://example.com/image1.jpg",
             "filename": "image1.jpg"
-        },
-        {
-            "url": "https://example.com/image2.png",
-            "filename": "image2.png"
-        },
-        {
-            "url": "https://example.com/image3.jpg",
-            "filename": "image3.jpg"
         }
     ]
 }
 ```
 
-### 3. แบบ Base64
-สำหรับการส่งรูปภาพในรูปแบบ Base64 string
-
-**Headers:**
-```
-Content-Type: application/json
-```
-
-**Request Body:**
-```json
-{
-    "images": [
-        {
-            "image": "BASE64_STRING",
-            "filename": "image1.jpg"
-        }
-    ]
-}
-```
-
-## Response Format
+## 📋 Response Format
+### Success Response
 ```json
 {
     "status": "success",
@@ -103,11 +78,12 @@ Content-Type: application/json
                 ]
             }
         }
-    ]
+    ],
+    "message": "Processed 1 images"
 }
 ```
 
-## Error Response
+### Error Response
 ```json
 {
     "status": "error",
@@ -115,23 +91,21 @@ Content-Type: application/json
 }
 ```
 
-## ข้อจำกัด
-- รองรับไฟล์รูปภาพประเภท: JPG, JPEG, PNG, GIF, BMP, WEBP
-- ขนาดไฟล์สูงสุด: 10MB ต่อไฟล์
-- จำนวนไฟล์สูงสุดต่อการเรียก: 10 ไฟล์
-
-## ตัวอย่างการใช้งาน
+## 💻 ตัวอย่างการใช้งาน
 
 ### Python
 ```python
 import requests
 
 # แบบ Form-data
-files = {
-    'file1': open('image1.jpg', 'rb'),
-    'file2': open('image2.png', 'rb')
-}
-response = requests.post('https://google-vision-api.vercel.app/api/ocr/process-batch', files=files)
+files = [
+    ('images[]', ('image1.jpg', open('image1.jpg', 'rb'))),
+    ('images[]', ('image2.jpg', open('image2.jpg', 'rb')))
+]
+response = requests.post(
+    'https://google-vision-api.vercel.app/api/ocr/process-batch',
+    files=files
+)
 
 # แบบ URL
 json_data = {
@@ -142,23 +116,26 @@ json_data = {
         }
     ]
 }
-response = requests.post('https://google-vision-api.vercel.app/api/ocr/process-batch', json=json_data)
+response = requests.post(
+    'https://google-vision-api.vercel.app/api/ocr/process-batch',
+    json=json_data
+)
 ```
 
 ### JavaScript
 ```javascript
 // แบบ Form-data
 const formData = new FormData();
-formData.append('file1', file1);
-formData.append('file2', file2);
+formData.append('images[]', file1);
+formData.append('images[]', file2);
 
-fetch('https://google-vision-api.vercel.app/api/ocr/process-batch', {
+await fetch('https://google-vision-api.vercel.app/api/ocr/process-batch', {
     method: 'POST',
     body: formData
 });
 
 // แบบ URL
-fetch('https://google-vision-api.vercel.app/api/ocr/process-batch', {
+await fetch('https://google-vision-api.vercel.app/api/ocr/process-batch', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json'
@@ -174,7 +151,15 @@ fetch('https://google-vision-api.vercel.app/api/ocr/process-batch', {
 });
 ```
 
-## หมายเหตุ
-- API นี้ต้องการ API key ของ Google Cloud Vision
-- ควรใช้ HTTPS ในการส่งข้อมูล
+## ⚠️ Error Codes
+| Status Code | Description |
+|-------------|-------------|
+| 400 | Bad Request - ข้อมูลไม่ถูกต้องหรือไม่ครบถ้วน |
+| 413 | Payload Too Large - ขนาดไฟล์เกินกำหนด |
+| 415 | Unsupported Media Type - รูปแบบไฟล์ไม่รองรับ |
+| 429 | Too Many Requests - จำนวนการเรียกเกินกำหนด |
+| 500 | Internal Server Error - เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์ |
+
+## 📝 หมายเหตุ
+- ใช้ HTTPS เท่านั้นในการส่งข้อมูล
 - ตรวจสอบขนาดและประเภทของไฟล์ก่อนส่ง
