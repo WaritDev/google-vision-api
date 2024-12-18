@@ -28,65 +28,66 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data).encode('utf-8'))
 
-    def process_form_data(self, form) -> list:
+    def process_form_data(self, form):
         results = []
-        processed_count = 0
         
         image_fields = []
         for key in form.keys():
             if key.startswith('images'):
                 field = form[key]
-                if hasattr(field, 'filename') and field.filename:
+                if isinstance(field, list):
+                    image_fields.extend([f for f in field if hasattr(f, 'filename')])
+                elif hasattr(field, 'filename'):
                     image_fields.append(field)
-        
+                    
         if len(image_fields) > self.MAX_IMAGES:
             return [{
                 'status': 'error',
-                'message': f'Maximum number of images exceeded. Limit is {self.MAX_IMAGES} images per request.'
+                'message': f'Maximum number of images exceeded. Limit is {self.MAX_IMAGES}'
             }]
 
         for field in image_fields:
-            if not field.filename:
-                continue
-
-            filename = field.filename
-            if not self.is_supported_format(filename):
-                results.append({
-                    'filename': filename,
-                    'status': 'error',
-                    'message': 'Unsupported file format'
-                })
-                continue
-
             try:
-                file_data = field.file.read()
-                if not self.check_file_size(file_data):
-                    results.append({
-                        'filename': filename,
-                        'status': 'error',
-                        'message': f'File size exceeds maximum limit of {self.MAX_FILE_SIZE/(1024*1024)}MB'
-                    })
-                    continue
-
-                result = self.process_image(file_data, filename)
-                results.append({
-                    'filename': filename,
-                    'status': 'success',
-                    'data': result
-                })
-                processed_count += 1
+                result = self.process_single_file(field)
+                results.append(result)
             except Exception as e:
                 results.append({
-                    'filename': filename,
+                    'filename': field.filename,
                     'status': 'error',
                     'message': str(e)
                 })
 
         return results
+    
+    def process_single_file(self, field):
+        print(f"Processing file: {field.filename}")
+        print(f"Field type: {type(field)}")
+        print(f"Content type: {field.type}")
+        
+        if not self.is_supported_format(field.filename):
+            print(f"Unsupported format: {field.filename}")
+            return {
+                'filename': field.filename,
+                'status': 'error',
+                'message': 'Unsupported file format'
+            }
+
+        file_data = field.file.read()
+        print(f"File size: {len(file_data)} bytes")
+
+        result = self.process_image(file_data, field.filename)
+        return {
+            'filename': field.filename,
+            'status': 'success',
+            'data': result
+        }
 
     def do_POST(self):
         if self.path != '/api/ocr/process-batch':
-            return self.send_json_response({'status': 'error', 'message': 'Invalid endpoint'}, 404)
+            return self.send_json_response({
+                'status': 'error',
+                'message': 'Invalid endpoint'
+            }, 404)
 
         try:
             content_type = self.headers.get('Content-Type', '')
@@ -99,7 +100,7 @@ class handler(BaseHTTPRequestHandler):
                 )
                 results = self.process_form_data(form)
                 
-                self.send_json_response({
+                return self.send_json_response({
                     'status': 'success',
                     'results': results,
                     'message': f'Processed {len(results)} images'
@@ -109,24 +110,17 @@ class handler(BaseHTTPRequestHandler):
                 post_data = json.loads(self.rfile.read(content_length).decode('utf-8'))
                 results = self.process_json_data(post_data)
                 
-                self.send_json_response({
+                return self.send_json_response({
                     'status': 'success',
                     'results': results,
                     'message': f'Processed {len(results)} images'
                 })
 
         except Exception as e:
-            self.send_json_response({
+            return self.send_json_response({
                 'status': 'error',
                 'message': str(e)
             }, 500)
-        
-        response_data = endpats.get(self.path, {
-            'status': 'error',
-            'message': 'Endpoint not found'
-        })
-        
-        self.send_json_response(response_data, 404 if response_data['status'] == 'error' else 200)
 
     def do_OPTIONS(self):
         self.send_response(200)
