@@ -34,8 +34,10 @@ class handler(BaseHTTPRequestHandler):
         
         image_fields = []
         for key in form.keys():
-            if key.startswith('images['):
-                image_fields.append(form[key])
+            if key.startswith('images'):
+                field = form[key]
+                if hasattr(field, 'filename') and field.filename:
+                    image_fields.append(field)
         
         if len(image_fields) > self.MAX_IMAGES:
             return [{
