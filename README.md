@@ -18,7 +18,7 @@ POST https://google-vision-api.vercel.app/api/ocr/process-batch
 API นี้ต้องใช้ API Key ในการเข้าถึง โดยส่งผ่าน Header
 
 ```http
-Secret-Key: your-api-key-here
+Secret-Key: "your-api-key-here"
 ```
 ### Form-data
 ```http
