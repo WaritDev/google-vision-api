@@ -10,6 +10,8 @@ ocr_processor = VisionOCRProcessor()
 
 class handler(BaseHTTPRequestHandler):
     SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif', '.pdf'}
+    MAX_IMAGES = 10
+
 
     def is_supported_format(self, filename: str) -> bool:
         return os.path.splitext(filename.lower())[1] in self.SUPPORTED_EXTENSIONS
@@ -26,7 +28,17 @@ class handler(BaseHTTPRequestHandler):
 
     def process_form_data(self, form) -> list:
         results = []
+        processed_count = 0
+        max_images = 10
+
         for field in form.keys():
+            if processed_count >= max_images:
+                results.append({
+                    'status': 'error',
+                    'message': f'Maximum number of images ({max_images}) exceeded'
+                })
+                break
+
             if not form[field].filename:
                 continue
 
@@ -47,17 +59,29 @@ class handler(BaseHTTPRequestHandler):
                     'status': 'success',
                     'data': result
                 })
+                processed_count += 1
             except Exception as e:
                 results.append({
                     'filename': filename,
                     'status': 'error',
                     'message': str(e)
                 })
+
         return results
+
 
     def process_json_data(self, data: dict) -> list:
         results = []
-        for image_data in data.get('images', []):
+        max_images = 10
+        images = data.get('images', [])
+
+        if len(images) > max_images:
+            return [{
+                'status': 'error',
+                'message': f'Maximum number of images ({max_images}) exceeded'
+            }]
+
+        for image_data in images:
             filename = image_data.get('filename', 'uploaded_image')
             try:
                 if 'url' in image_data:
@@ -80,7 +104,9 @@ class handler(BaseHTTPRequestHandler):
                     'status': 'error',
                     'message': str(e)
                 })
+
         return results
+
 
     def do_POST(self):
         if self.path != '/api/ocr/process-batch':
