@@ -2,8 +2,7 @@
 
 ## 📝 รายละเอียด
 API สำหรับแปลงข้อความจากรูปภาพโดยใช้ Google Cloud Vision API รองรับการส่งข้อมูล 3 รูปแบบ:
-- Form-data (รูปภาพหลายไฟล์)
-- URL ของรูปภาพ
+- Form-data Images Array (รูปภาพหลายไฟล์)
 
 ## 🔗 Endpoint
 ```
@@ -16,8 +15,12 @@ POST https://google-vision-api.vercel.app/api/ocr/process-batch
 - จำนวนไฟล์สูงสุด: 10 ไฟล์ต่อการเรียก
 
 ## 🚀 วิธีการใช้งาน
+API นี้ต้องใช้ API Key ในการเข้าถึง โดยส่งผ่าน Header
 
-### 1. แบบ Form-data
+```http
+Secret-Key: your-api-key-here
+```
+### Form-data
 ```http
 POST /api/ocr/process-batch
 Content-Type: multipart/form-data
@@ -25,30 +28,16 @@ Content-Type: multipart/form-data
 images[]: [ไฟล์รูปภาพ 1]
 images[]: [ไฟล์รูปภาพ 2]
 ...
+
 ```
-หรือ
 ```http
+หรือ
 POST /api/ocr/process-batch
 Content-Type: multipart/form-data
 
 images[0]: [ไฟล์รูปภาพ 1]
 images[1]: [ไฟล์รูปภาพ 2]
 ...
-```
-
-### 2. แบบ URL
-```http
-POST /api/ocr/process-batch
-Content-Type: application/json
-
-{
-    "images": [
-        {
-            "url": "https://example.com/image1.jpg",
-            "filename": "image1.jpg"
-        }
-    ]
-}
 ```
 
 ## 📋 Response Format
@@ -97,7 +86,6 @@ Content-Type: application/json
 ```python
 import requests
 
-# แบบ Form-data
 files = [
     ('images[]', ('image1.jpg', open('image1.jpg', 'rb'))),
     ('images[]', ('image2.jpg', open('image2.jpg', 'rb')))
@@ -106,25 +94,10 @@ response = requests.post(
     'https://google-vision-api.vercel.app/api/ocr/process-batch',
     files=files
 )
-
-# แบบ URL
-json_data = {
-    "images": [
-        {
-            "url": "https://example.com/image1.jpg",
-            "filename": "image1.jpg"
-        }
-    ]
-}
-response = requests.post(
-    'https://google-vision-api.vercel.app/api/ocr/process-batch',
-    json=json_data
-)
 ```
 
 ### JavaScript
 ```javascript
-// แบบ Form-data
 const formData = new FormData();
 formData.append('images[]', file1);
 formData.append('images[]', file2);
@@ -132,22 +105,6 @@ formData.append('images[]', file2);
 await fetch('https://google-vision-api.vercel.app/api/ocr/process-batch', {
     method: 'POST',
     body: formData
-});
-
-// แบบ URL
-await fetch('https://google-vision-api.vercel.app/api/ocr/process-batch', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-        images: [
-            {
-                url: 'https://example.com/image1.jpg',
-                filename: 'image1.jpg'
-            }
-        ]
-    })
 });
 ```
 

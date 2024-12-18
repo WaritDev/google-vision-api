@@ -1,7 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import cgi
-from tokenize import endpats
 import os
 from vision_ocr_processor import VisionOCRProcessor
 
@@ -11,6 +10,24 @@ class handler(BaseHTTPRequestHandler):
     SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
     MAX_IMAGES = 10
     MAX_FILE_SIZE = 10 * 1024 * 1024
+    
+    def do_GET(self):
+        self.send_json_response({
+            'status': 'error',
+            'message': 'This endpoint only accepts POST requests'
+        }, 405)
+    
+    def verify_api_key(self) -> bool:
+        api_key = self.headers.get('Secret-Key')
+        if not api_key:
+            return False
+        return api_key == os.environ.get('API_SECRET_KEY')
+
+    def send_unauthorized_response(self):
+        self.send_json_response({
+            'status': 'error',
+            'message': 'Unauthorized access. Invalid or missing API key'
+        }, 401)
 
     def check_file_size(self, file_data: bytes) -> bool:
         return len(file_data) <= self.MAX_FILE_SIZE
@@ -83,6 +100,9 @@ class handler(BaseHTTPRequestHandler):
         }
 
     def do_POST(self):
+        if not self.verify_api_key():
+            return self.send_unauthorized_response()
+        
         if self.path != '/api/ocr/process-batch':
             return self.send_json_response({
                 'status': 'error',
@@ -125,6 +145,6 @@ class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Methods', 'POST')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key')
         self.end_headers()
