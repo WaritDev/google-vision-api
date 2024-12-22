@@ -10,24 +10,12 @@ class handler(BaseHTTPRequestHandler):
     SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
     MAX_IMAGES = 10
     MAX_FILE_SIZE = 10 * 1024 * 1024
-    
+
     def do_GET(self):
         self.send_json_response({
             'status': 'error',
             'message': 'This endpoint only accepts POST requests'
         }, 405)
-    
-    def verify_api_key(self) -> bool:
-        api_key = self.headers.get('Secret-Key')
-        if not api_key:
-            return False
-        return api_key == os.environ.get('API_SECRET_KEY')
-
-    def send_unauthorized_response(self):
-        self.send_json_response({
-            'status': 'error',
-            'message': 'Unauthorized access. Invalid or missing API key'
-        }, 401)
 
     def check_file_size(self, file_data: bytes) -> bool:
         return len(file_data) <= self.MAX_FILE_SIZE
@@ -77,12 +65,7 @@ class handler(BaseHTTPRequestHandler):
         return results
     
     def process_single_file(self, field):
-        print(f"Processing file: {field.filename}")
-        print(f"Field type: {type(field)}")
-        print(f"Content type: {field.type}")
-        
         if not self.is_supported_format(field.filename):
-            print(f"Unsupported format: {field.filename}")
             return {
                 'filename': field.filename,
                 'status': 'error',
@@ -90,7 +73,12 @@ class handler(BaseHTTPRequestHandler):
             }
 
         file_data = field.file.read()
-        print(f"File size: {len(file_data)} bytes")
+        if not self.check_file_size(file_data):
+            return {
+                'filename': field.filename,
+                'status': 'error',
+                'message': 'File size exceeds the limit'
+            }
 
         result = self.process_image(file_data, field.filename)
         return {
@@ -100,9 +88,6 @@ class handler(BaseHTTPRequestHandler):
         }
 
     def do_POST(self):
-        if not self.verify_api_key():
-            return self.send_unauthorized_response()
-        
         if self.path != '/api/ocr/process-batch':
             return self.send_json_response({
                 'status': 'error',
@@ -146,5 +131,5 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'POST')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
