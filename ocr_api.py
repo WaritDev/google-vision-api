@@ -83,7 +83,6 @@ class handler(BaseHTTPRequestHandler):
         result = self.process_image(file_data, field.filename)
         return {
             'filename': field.filename,
-            'status': 'success',
             'data': result
         }
 
@@ -106,7 +105,6 @@ class handler(BaseHTTPRequestHandler):
                 results = self.process_form_data(form)
                 
                 return self.send_json_response({
-                    'status': 'success',
                     'results': results,
                     'message': f'Processed {len(results)} images'
                 })
@@ -116,7 +114,6 @@ class handler(BaseHTTPRequestHandler):
                 results = self.process_json_data(post_data)
                 
                 return self.send_json_response({
-                    'status': 'success',
                     'results': results,
                     'message': f'Processed {len(results)} images'
                 })
