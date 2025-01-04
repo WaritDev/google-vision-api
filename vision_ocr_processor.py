@@ -42,8 +42,6 @@ class VisionOCRProcessor:
             
             full_text = response.full_text_annotation
             result = {
-                'filename': filename,
-                'timestamp': datetime.now().isoformat(),
                 'text': full_text.text if full_text else '',
             }
             return result
