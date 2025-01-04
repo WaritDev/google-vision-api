@@ -32,22 +32,6 @@ class VisionOCRProcessor:
             self.logger.error(f"Vision client initialization failed: {e}")
             raise
 
-    def _extract_block_info(self, block) -> Dict[str, Any]:
-        return {
-            'text': ' '.join([
-                ''.join([symbol.text for symbol in word.symbols])
-                for paragraph in block.paragraphs
-                for word in paragraph.words
-            ]),
-            'confidence': block.confidence,
-            'bounds': {
-                'x1': block.bounding_box.vertices[0].x,
-                'y1': block.bounding_box.vertices[0].y,
-                'x2': block.bounding_box.vertices[2].x,
-                'y2': block.bounding_box.vertices[2].y
-            }
-        }
-
     def process_image_bytes(self, image_bytes: bytes, filename: str = "uploaded_image") -> Dict[str, Any]:
         self.logger.info(f"Processing image: {filename}")
         
@@ -63,14 +47,6 @@ class VisionOCRProcessor:
                 'text': full_text.text if full_text else '',
                 'blocks': []
             }
-            
-            if full_text:
-                result['blocks'] = [
-                    self._extract_block_info(block)
-                    for page in full_text.pages
-                    for block in page.blocks
-                ]
-            
             return result
             
         except Exception as e:
