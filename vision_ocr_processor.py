@@ -45,7 +45,6 @@ class VisionOCRProcessor:
                 'filename': filename,
                 'timestamp': datetime.now().isoformat(),
                 'text': full_text.text if full_text else '',
-                'blocks': []
             }
             return result
             
